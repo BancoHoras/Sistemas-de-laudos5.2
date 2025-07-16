@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Posto de Saúde v5.8 (Final)</title>
+    <title>Sistema de Posto de Saúde v5.9 (Final)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -307,9 +307,9 @@
     </div>
     
     <!-- === TEMPLATES DOS LAUDOS PARA PDF (OCULTOS) === -->
-    <div id="laudo-dengue-container"></div>
-    <div id="laudo-covid-container"></div>
-    <div id="laudo-hcg-container"></div>
+    <div id="laudo-dengue-container"><!-- Template Dengue --></div>
+    <div id="laudo-covid-container"><!-- Template COVID --></div>
+    <div id="laudo-hcg-container"><!-- Template HCG --></div>
     
     <div id="loader" class="loader-overlay">
         <div class="loader"></div>
@@ -360,7 +360,7 @@
             try {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({ action, payload })
                 });
                 if (!response.ok) throw new Error(`Erro de rede: ${response.statusText}`);
@@ -427,7 +427,6 @@
             
             const result = await apiPost('salvarTeste', payload);
             if(result) {
-                // Atualiza o estado local para refletir a mudança imediatamente
                 dbTestes.push(payload);
                 estoqueItem.quantidade--;
                 proximoTesteId++; 
@@ -456,94 +455,24 @@
             }
         }
         
-        // --- Funções de Renderização, UI, Navegação e Autenticação (Completas) ---
+        // --- Funções de Renderização, UI, Navegação e Autenticação (Completas e Corrigidas) ---
         function renderizarEstoque() {
-            const tbody = document.getElementById('stock-table-body');
-            tbody.innerHTML = '';
-            if (!dbEstoque || dbEstoque.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhum lote cadastrado no estoque.</td></tr>';
-                return;
-            }
-            dbEstoque.forEach(item => {
-                const row = document.createElement('tr');
-                row.innerHTML = `<td>${item.tipo}</td><td>${item.lote}</td><td>${new Date(item.validade+'T00:00:00').toLocaleDateString('pt-BR')}</td><td>${item.quantidade}</td>
-                    <td class="actions-cell"><button class="btn btn-edit btn-sm" onclick="editarLote(${item.id})">Editar</button><button class="btn btn-danger btn-sm" onclick="excluirLote(${item.id})">Excluir</button></td>`;
-                tbody.appendChild(row);
-            });
+            const tbody = document.getElementById('stock-table-body'); tbody.innerHTML = ''; if (!dbEstoque || dbEstoque.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhum lote cadastrado no estoque.</td></tr>'; return; }
+            dbEstoque.forEach(item => { const row = document.createElement('tr'); row.innerHTML = `<td>${item.tipo}</td><td>${item.lote}</td><td>${new Date(item.validade+'T00:00:00').toLocaleDateString('pt-BR')}</td><td>${item.quantidade}</td> <td class="actions-cell"><button class="btn btn-edit btn-sm" onclick="editarLote(${item.id})">Editar</button><button class="btn btn-danger btn-sm" onclick="excluirLote(${item.id})">Excluir</button></td>`; tbody.appendChild(row); });
         }
         
         function renderizarRelatorios() {
-            const tbody = document.getElementById('report-table-body');
-            tbody.innerHTML = '';
-            if (!dbTestes || dbTestes.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Nenhum teste realizado ainda.</td></tr>';
-                return;
-            }
-            dbTestes.forEach(teste => {
-                const row = document.createElement('tr');
-                row.innerHTML = `<td>${teste.nome}</td><td>${teste.prontuario_cpf_id || 'N/A'}</td><td>${teste.tipo}</td><td>${new Date(teste.dataColeta + 'T00:00:00').toLocaleDateString('pt-BR')}</td><td>${teste.resultado}</td><td>${teste.profissional}</td>
-                    <td class="actions-cell"><button class="btn btn-secondary btn-sm" onclick="gerarPDF(${teste.id})">Gerar PDF</button><button class="btn btn-danger btn-sm" onclick="excluirTeste(${teste.id})">Excluir</button></td>`;
-                tbody.appendChild(row);
-            });
+            const tbody = document.getElementById('report-table-body'); tbody.innerHTML = ''; if (!dbTestes || dbTestes.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Nenhum teste realizado ainda.</td></tr>'; return; }
+            dbTestes.forEach(teste => { const row = document.createElement('tr'); row.innerHTML = `<td>${teste.nome}</td><td>${teste.prontuario_cpf_id || 'N/A'}</td><td>${teste.tipo}</td><td>${new Date(teste.dataColeta + 'T00:00:00').toLocaleDateString('pt-BR')}</td><td>${teste.resultado}</td><td>${teste.profissional}</td> <td class="actions-cell"><button class="btn btn-secondary btn-sm" onclick="gerarPDF(${teste.id})">Gerar PDF</button><button class="btn btn-danger btn-sm" onclick="excluirTeste(${teste.id})">Excluir</button></td>`; tbody.appendChild(row); });
         }
 
         function renderDashboard() {
-            if (typeof Chart === 'undefined') return;
-            const totalTestes = dbTestes.length;
-            const totalDengue = dbTestes.filter(t => t.tipo === 'DENGUE').length;
-            const totalCovid = dbTestes.filter(t => t.tipo === 'COVID').length;
-            const totalHcg = dbTestes.filter(t => t.tipo === 'HCG').length;
-            const totalPositivos = dbTestes.filter(t => String(t.resultado).includes('POSITIVO')).length;
-            document.getElementById('kpi-total-testes').textContent = totalTestes;
-            document.getElementById('kpi-total-dengue').textContent = totalDengue;
-            document.getElementById('kpi-total-covid').textContent = totalCovid;
-            document.getElementById('kpi-total-hcg').textContent = totalHcg;
-            document.getElementById('kpi-total-positivos').textContent = totalPositivos;
-            const typeCtx = document.getElementById('typeChart').getContext('2d');
-            const resultCtx = document.getElementById('resultChart').getContext('2d');
-            if(typeChart) typeChart.destroy();
-            typeChart = new Chart(typeCtx, { type: 'doughnut', data: { labels: ['Dengue', 'COVID-19', 'HCG'], datasets: [{ data: [totalDengue, totalCovid, totalHcg], backgroundColor: ['#05668D', '#00A896', 'var(--hcg-color)'], borderColor: 'var(--card-bg)', borderWidth: 4 }] }, options: { responsive: true, plugins: { legend: { position: 'top', labels: { color: 'var(--text-light)' } }, title: { display: true, text: 'Distribuição por Tipo de Teste', color: 'var(--text-color)' } } } });
-            const totalNegativos = dbTestes.filter(t => String(t.resultado).includes('NEGATIVO')).length;
-            const totalInconclusivos = dbTestes.filter(t => String(t.resultado).includes('INCONCLUSIVO')).length;
-            if(resultChart) resultChart.destroy();
-            resultChart = new Chart(resultCtx, { type: 'bar', data: { labels: ['Positivo', 'Negativo', 'Inconclusivo'], datasets: [{ label: 'Resultados', data: [totalPositivos, totalNegativos, totalInconclusivos], backgroundColor: ['var(--danger-color)', 'var(--secondary-color)', 'var(--warning-color)'], }] }, options: { responsive: true, scales: { y: { beginAtZero: true, grid: { color: 'var(--border-color)' }, ticks: { color: 'var(--text-light)', stepSize: 1 } }, x: { grid: { color: 'transparent' }, ticks: { color: 'var(--text-light)' } } }, plugins: { legend: { display: false }, title: { display: true, text: 'Distribuição de Resultados', color: 'var(--text-color)' } } } });
-            const recentActivityBody = document.getElementById('recent-activity-body');
-            recentActivityBody.innerHTML = '';
-            const recentTests = dbTestes.slice(-5).reverse();
-            if (recentTests.length === 0) {
-                recentActivityBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum teste registrado ainda.</td></tr>';
-            } else {
-                recentTests.forEach(teste => {
-                    recentActivityBody.innerHTML += `<tr><td>${teste.nome}</td><td>${teste.tipo}</td><td>${teste.resultado}</td><td>${teste.profissional}</td></tr>`;
-                });
-            }
+            if (typeof Chart === 'undefined') return; const totalTestes = dbTestes.length; const totalDengue = dbTestes.filter(t => t.tipo === 'DENGUE').length; const totalCovid = dbTestes.filter(t => t.tipo === 'COVID').length; const totalHcg = dbTestes.filter(t => t.tipo === 'HCG').length; const totalPositivos = dbTestes.filter(t => String(t.resultado).includes('POSITIVO')).length; document.getElementById('kpi-total-testes').textContent = totalTestes; document.getElementById('kpi-total-dengue').textContent = totalDengue; document.getElementById('kpi-total-covid').textContent = totalCovid; document.getElementById('kpi-total-hcg').textContent = totalHcg; document.getElementById('kpi-total-positivos').textContent = totalPositivos; const typeCtx = document.getElementById('typeChart').getContext('2d'); const resultCtx = document.getElementById('resultChart').getContext('2d'); if(typeChart) typeChart.destroy(); typeChart = new Chart(typeCtx, { type: 'doughnut', data: { labels: ['Dengue', 'COVID-19', 'HCG'], datasets: [{ data: [totalDengue, totalCovid, totalHcg], backgroundColor: ['#05668D', '#00A896', 'var(--hcg-color)'], borderColor: 'var(--card-bg)', borderWidth: 4 }] }, options: { responsive: true, plugins: { legend: { position: 'top', labels: { color: 'var(--text-light)' } }, title: { display: true, text: 'Distribuição por Tipo de Teste', color: 'var(--text-color)' } } } }); const totalNegativos = dbTestes.filter(t => String(t.resultado).includes('NEGATIVO')).length; const totalInconclusivos = dbTestes.filter(t => String(t.resultado).includes('INCONCLUSIVO')).length; if(resultChart) resultChart.destroy(); resultChart = new Chart(resultCtx, { type: 'bar', data: { labels: ['Positivo', 'Negativo', 'Inconclusivo'], datasets: [{ label: 'Resultados', data: [totalPositivos, totalNegativos, totalInconclusivos], backgroundColor: ['var(--danger-color)', 'var(--secondary-color)', 'var(--warning-color)'], }] }, options: { responsive: true, scales: { y: { beginAtZero: true, grid: { color: 'var(--border-color)' }, ticks: { color: 'var(--text-light)', stepSize: 1 } }, x: { grid: { color: 'transparent' }, ticks: { color: 'var(--text-light)' } } }, plugins: { legend: { display: false }, title: { display: true, text: 'Distribuição de Resultados', color: 'var(--text-color)' } } } }); const recentActivityBody = document.getElementById('recent-activity-body'); recentActivityBody.innerHTML = ''; const recentTests = dbTestes.slice(-5).reverse(); if (recentTests.length === 0) recentActivityBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum teste registrado ainda.</td></tr>'; else recentTests.forEach(teste => { recentActivityBody.innerHTML += `<tr><td>${teste.nome}</td><td>${teste.tipo}</td><td>${teste.resultado}</td><td>${teste.profissional}</td></tr>`; });
         }
         
-        function toggleTestForm() {
-            const tipo = document.getElementById('tipo-teste').value;
-            ['dengue', 'covid', 'hcg'].forEach(formType => {
-                const formElement = document.getElementById(`form-${formType}`);
-                if(formElement) formElement.style.display = tipo.toLowerCase() === formType ? 'block' : 'none';
-            });
-            popularDropdownLotes(tipo);
-        }
+        function toggleTestForm() { const tipo = document.getElementById('tipo-teste').value; ['dengue', 'covid', 'hcg'].forEach(formType => { document.getElementById(`form-${formType}`).style.display = tipo.toLowerCase() === formType ? 'block' : 'none'; }); popularDropdownLotes(tipo); }
         
-        function popularDropdownLotes(tipo) {
-            const dropdown = document.getElementById(`${tipo.toLowerCase()}-lote`);
-            if (!dropdown) return;
-            dropdown.innerHTML = '<option value="" disabled selected>Selecione um lote...</option>';
-            const lotesDisponiveis = dbEstoque.filter(item => item.tipo === tipo && item.quantidade > 0);
-            if (lotesDisponiveis.length === 0) {
-                dropdown.innerHTML = '<option value="" disabled>Nenhum lote disponível</option>';
-            } else {
-                lotesDisponiveis.forEach(lote => {
-                    const option = document.createElement('option');
-                    option.value = lote.id;
-                    option.textContent = `LOTE: ${lote.lote} | VAL: ${new Date(lote.validade+'T00:00:00').toLocaleDateString('pt-BR')} | QTD: ${lote.quantidade}`;
-                    dropdown.appendChild(option);
-                });
-            }
-        }
+        function popularDropdownLotes(tipo) { const dropdown = document.getElementById(`${tipo.toLowerCase()}-lote`); if (!dropdown) return; dropdown.innerHTML = '<option value="" disabled selected>Selecione um lote...</option>'; const lotesDisponiveis = dbEstoque.filter(item => item.tipo === tipo && item.quantidade > 0); if (lotesDisponiveis.length === 0) dropdown.innerHTML = '<option value="" disabled>Nenhum lote disponível</option>'; else lotesDisponiveis.forEach(lote => { const option = document.createElement('option'); option.value = lote.id; option.textContent = `LOTE: ${lote.lote} | VAL: ${new Date(lote.validade+'T00:00:00').toLocaleDateString('pt-BR')} | QTD: ${lote.quantidade}`; dropdown.appendChild(option); }); }
 
         function showPage(pageId) {
             if(pageId === 'estoque' && !checkAdminLogin()) { accessStockPage(); return; }
