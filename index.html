@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Posto de Saúde v5.2 (Google Sheets)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --font-family: 'Poppins', sans-serif;
+            --primary-color: #00A896;
+            --secondary-color: #02C39A;
+            --accent-color: #F0F3BD;
+            --danger-color: #E63946;
+            --warning-color: #FCA311;
+            --info-color: #457B9D;
+            --hcg-color: #8338EC;
+            
+            --sidebar-bg: linear-gradient(180deg, #05668D 0%, #028090 100%);
+            --sidebar-text: #FFFFFF;
+            --sidebar-active-bg: #00A896;
+            --sidebar-logout-bg: #c9404d;
+
+            --bg-color: #F0F2F5;
+            --card-bg: #FFFFFF;
+            --text-color: #1D3557;
+            --text-light: #6c757d;
+            --border-color: #E9ECEF;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        body.dark-theme {
+            --sidebar-bg: linear-gradient(180deg, #1D3557 0%, #2B4264 100%);
+            --sidebar-logout-bg: #a1333e;
+            --bg-color: #121212;
+            --card-bg: #1E1E1E;
+            --text-color: #EAEAEA;
+            --text-light: #a0a0a0;
+            --border-color: #333;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        * { box-sizing: border-box; }
+        body { 
+            font-family: var(--font-family); margin: 0; background-color: var(--bg-color); color: var(--text-color); 
+            display: flex; transition: background-color 0.3s, color 0.3s;
+        }
+        .sidebar { 
+            width: 240px; background: var(--sidebar-bg); color: var(--sidebar-text); height: 100vh; padding: 20px 0;
+            position: fixed; display: flex; flex-direction: column; z-index: 100;
+        }
+        .sidebar-header { padding: 0 20px; text-align: center; }
+        .sidebar-header h2 { margin-bottom: 5px; }
+        .theme-switcher { cursor: pointer; font-size: 24px; user-select: none; }
+        .sidebar nav { margin-top: 30px; display: flex; flex-direction: column; flex-grow: 1;}
+        .sidebar nav a { 
+            display: flex; align-items: center; gap: 15px; color: var(--sidebar-text); padding: 15px 20px; 
+            text-decoration: none; transition: background-color 0.3s, color 0.3s; border-left: 4px solid transparent;
+        }
+        .sidebar nav a:hover { background-color: rgba(255, 255, 255, 0.1); }
+        .sidebar nav a.active { background-color: var(--sidebar-active-bg); font-weight: 600; border-left-color: var(--accent-color); }
+        #logout-link {
+            margin-top: auto;
+            background-color: var(--sidebar-logout-bg);
+            font-weight: 600;
+        }
+        .main-content { margin-left: 240px; flex-grow: 1; padding: 30px; }
+        .page { display: none; }
+        .page.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card { 
+            background-color: var(--card-bg); padding: 25px; border-radius: 12px; box-shadow: var(--shadow);
+            margin-bottom: 30px; transition: background-color 0.3s;
+        }
+        .card h3, .card h4 { 
+            margin-top: 0; color: var(--text-color); border-bottom: 1px solid var(--border-color); padding-bottom: 15px; 
+            margin-bottom: 20px; font-size: 1.25rem;
+        }
+        .card h4 { font-size: 1rem; border-bottom-style: dashed; }
+        .form-row { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px; }
+        .form-group { flex: 1; min-width: 250px; display: flex; flex-direction: column; }
+        .form-group label { margin-bottom: 8px; font-weight: 500; font-size: 0.9em; }
+        .form-group input, .form-group select { 
+            padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1em;
+            font-family: var(--font-family); background-color: var(--bg-color); color: var(--text-color);
+            text-transform: uppercase; transition: all 0.3s;
+        }
+        .form-group input:focus, .form-group select:focus {
+            border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(0, 168, 150, 0.2); outline: none;
+        }
+        .radio-group { display: flex; align-items: center; gap: 20px; padding-top: 10px; }
+        .btn { padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: 600; transition: all 0.3s; }
+        .btn-sm { padding: 6px 12px; font-size: 0.8em; }
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-primary:hover { background-color: var(--secondary-color); transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+        .btn-secondary { background-color: var(--info-color); color: white; }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-edit { background-color: var(--warning-color); color: white; }
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.95rem; }
+        .data-table th, .data-table td { padding: 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .data-table th { font-weight: 600; font-size: 0.85em; text-transform: uppercase; }
+        .data-table tr:last-child td { border-bottom: none; }
+        .actions-cell { display: flex; gap: 8px; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .kpi-card { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: var(--shadow); border-left: 5px solid var(--primary-color); }
+        .kpi-card.warning { border-left-color: var(--warning-color); }
+        .kpi-card.hcg { border-left-color: var(--hcg-color); }
+        .kpi-card .kpi-title { font-size: 1rem; color: var(--text-light); margin: 0 0 10px 0; }
+        .kpi-card .kpi-value { font-size: 2.5rem; font-weight: 700; margin: 0; }
+        .charts-container { display: grid; grid-template-columns: 1fr 2fr; gap: 30px; align-items: center; }
+        #laudo-dengue-container, #laudo-covid-container, #laudo-hcg-container { display: none; position: fixed; top: 0; left: -3000px; z-index: -1000; background: #fff; }
+        .laudo-pdf {
+            width: 210mm; min-height: 297mm; padding: 15mm; box-sizing: border-box; background: white; color: black;
+            font-family: Arial, Helvetica, sans-serif; font-size: 11pt; display: flex; flex-direction: column;
+        }
+        .laudo-pdf p { margin: 5px 0; } .laudo-pdf .laudo-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid black; padding-bottom: 5mm; }
+        .laudo-pdf .header-left p { margin: 0; font-size: 10pt; line-height: 1.2; } .laudo-pdf .header-right p { margin: 0; font-size: 20pt; font-weight: bold; }
+        .laudo-pdf .laudo-title { text-align: center; font-size: 13pt; font-weight: bold; margin: 5mm 0 1mm 0; }
+        .laudo-pdf .laudo-subtitle { text-align: center; font-size: 11pt; margin-bottom: 5mm; } .laudo-pdf .laudo-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
+        .laudo-pdf .laudo-block { font-weight: bold; border: 1.5px solid black; padding: 2mm; margin: 3mm 0; text-align: center; font-size: 12pt; }
+        .laudo-pdf .result-options { font-size: 12pt; line-height: 1.5; } .laudo-pdf .result-options span { font-weight: bold; font-family: 'Courier New', Courier, monospace; }
+        .laudo-pdf .nota-condicional, .laudo-pdf .reference-box { border: 1px solid #333; padding: 3mm; font-size: 10pt; text-align: justify; margin: 3mm 0; }
+        .laudo-pdf .nota-box { margin-top: 5mm; font-size: 9pt; text-align: justify; } .laudo-pdf .signature-section { margin-top: 8mm; }
+        .laudo-pdf .laudo-footer { margin-top: auto; padding-top: 5mm; font-size: 8pt; text-align: justify; }
+        .laudo-pdf .laudo-footer hr { border: none; border-top: 1px solid black; margin: 3mm 0; }
+        .laudo-pdf .laudo-footer p { text-align: center; margin: 1px 0; }
+        .laudo-pdf .patient-box, .laudo-pdf .test-details-box, .laudo-pdf .result-box { border: 1.5px solid black; padding: 3mm; margin-top: 5mm; }
+        .laudo-pdf .obs-box { border: 1.5px solid black; padding: 1mm 3mm 3mm 3mm; margin-top: 5mm; font-size: 10pt; }
+        .laudo-pdf .obs-box ol { padding-left: 5mm; margin: 0; } .laudo-pdf .obs-box li { margin-bottom: 2mm; }
+        .laudo-pdf .box-title { font-size: 11pt; font-weight: bold; text-align: center; margin-bottom: 2mm; }
+        .laudo-pdf .check-options { margin-left: 5mm; font-size: 12pt; } .laudo-pdf .check-options span { font-weight: bold; font-family: 'Courier New', Courier, monospace; }
+        .laudo-pdf .single-line-result { font-weight: bold; font-size: 12pt; }
+        .loader-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); display: flex; align-items: center;
+            justify-content: center; z-index: 9999; color: white; font-size: 1.5rem;
+            flex-direction: column;
+        }
+        .loader {
+            border: 8px solid #f3f3f3; border-top: 8px solid #00A896;
+            border-radius: 50%; width: 60px; height: 60px;
+            animation: spin 2s linear infinite; margin-bottom: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>SaúdeSys v5</h2>
+            <span class="theme-switcher" id="theme-switcher">🌙</span>
+        </div>
+        <nav>
+            <a href="#" class="nav-link" onclick="showPage('dashboard')">📊 Dashboard</a>
+            <a href="#" class="nav-link" onclick="showPage('cadastro')">➕ Cadastrar Teste</a>
+            <a href="#" class="nav-link" onclick="showPage('relatorios')">📋 Relatórios</a>
+            <a href="#" class="nav-link" onclick="accessStockPage()">📦 Estoque</a>
+            <a href="#" class="nav-link" id="logout-link" onclick="logout()" style="display: none;">🔒 Logout Admin</a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <!-- PÁGINA DASHBOARD -->
+        <div id="dashboard" class="page">
+            <h3>Dashboard</h3>
+            <div class="kpi-grid">
+                <div class="kpi-card"><p class="kpi-title">Total de Testes</p><h2 class="kpi-value" id="kpi-total-testes">0</h2></div>
+                <div class="kpi-card"><p class="kpi-title">Testes de Dengue</p><h2 class="kpi-value" id="kpi-total-dengue">0</h2></div>
+                <div class="kpi-card"><p class="kpi-title">Testes de COVID</p><h2 class="kpi-value" id="kpi-total-covid">0</h2></div>
+                <div class="kpi-card hcg"><p class="kpi-title">Testes de HCG</p><h2 class="kpi-value" id="kpi-total-hcg">0</h2></div>
+                <div class="kpi-card warning"><p class="kpi-title">Resultados Positivos</p><h2 class="kpi-value" id="kpi-total-positivos">0</h2></div>
+            </div>
+            <div class="card" style="margin-top: 30px;">
+                <div class="charts-container">
+                    <div><canvas id="typeChart"></canvas></div>
+                    <div><canvas id="resultChart"></canvas></div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Atividades Recentes</h3>
+                <table class="data-table">
+                    <thead><tr><th>Paciente</th><th>Tipo Teste</th><th>Resultado</th><th>Profissional</th></tr></thead>
+                    <tbody id="recent-activity-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PÁGINA CADASTRO -->
+        <div id="cadastro" class="page">
+            <div class="card">
+                <h3>Novo Teste</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tipo-teste">Selecione o Tipo de Teste</label>
+                        <select id="tipo-teste" onchange="toggleTestForm()">
+                            <option value="DENGUE">Teste de Dengue NS1</option>
+                            <option value="COVID">Teste Rápido de Antígeno COVID-19</option>
+                            <option value="HCG">Teste Rápido de Detecção de HCG</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                         <label for="profissional-responsavel">Profissional Responsável</label>
+                         <input type="text" id="profissional-responsavel" required>
+                    </div>
+                </div>
+                <!-- Formulário de Dengue -->
+                <form id="form-dengue" style="display: none;">
+                    <h4>Dados do Paciente</h4>
+                    <div class="form-row">
+                        <div class="form-group"><label for="dengue-nome">Nome</label><input type="text" id="dengue-nome" required></div>
+                        <div class="form-group"><label for="dengue-cpf">CPF</label><input type="text" id="dengue-cpf"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label for="dengue-nascimento">Nascimento</label><input type="date" id="dengue-nascimento" required></div>
+                        <div class="form-group"><label for="dengue-sexo">Sexo</label><input type="text" id="dengue-sexo"></div>
+                    </div>
+                    <h4>Dados do Teste</h4>
+                     <div class="form-row">
+                        <div class="form-group"><label for="dengue-lote">Selecione o Lote</label><select id="dengue-lote" required></select></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label for="dengue-inicio-sintomas">Início dos sintomas</label><input type="date" id="dengue-inicio-sintomas" required></div>
+                        <div class="form-group"><label for="dengue-data-coleta">Data da coleta</label><input type="date" id="dengue-data-coleta" required></div>
+                    </div>
+                    <h4>Resultado</h4>
+                    <div class="form-group"><div class="radio-group"><label><input type="radio" name="dengue-resultado" value="POSITIVO" required> Positivo</label><label><input type="radio" name="dengue-resultado" value="NEGATIVO"> Negativo</label><label><input type="radio" name="dengue-resultado" value="INCONCLUSIVO"> Inconclusivo</label></div></div>
+                    <div class="btn-container"><button type="button" class="btn btn-primary" onclick="salvarTeste('DENGUE')">Salvar Teste</button></div>
+                </form>
+
+                <!-- Formulário de COVID-19 -->
+                <form id="form-covid" style="display: none;">
+                     <h4>Dados do Paciente</h4>
+                     <div class="form-row">
+                        <div class="form-group"><label for="covid-nome">Nome</label><input type="text" id="covid-nome" required></div>
+                        <div class="form-group"><label for="covid-cidade">Cidade</label><input type="text" id="covid-cidade" value="NOVO HAMBURGO"></div>
+                    </div>
+                    <div class="form-row">
+                         <div class="form-group"><label for="covid-nascimento">Nascimento</label><input type="date" id="covid-nascimento" required></div>
+                        <div class="form-group"><label for="covid-sexo">Sexo</label><input type="text" id="covid-sexo"></div>
+                    </div>
+                    <h4>Dados do Teste</h4>
+                     <div class="form-row">
+                        <div class="form-group"><label for="covid-lote">Selecione o Lote</label><select id="covid-lote" required></select></div>
+                         <div class="form-group"><label>Amostra</label><div class="radio-group"><label><input type="radio" name="covid-amostra" value="SWAB NASOFARINGEO" checked> Swab nasofaríngeo</label><label><input type="radio" name="covid-amostra" value="SWAB NASAL"> Swab nasal</label></div></div>
+                    </div>
+                    <h4>Resultado</h4>
+                    <div class="form-group"><div class="radio-group"><label><input type="radio" name="covid-resultado" value="POSITIVO" required> Positivo</label><label><input type="radio" name="covid-resultado" value="NEGATIVO"> Negativo</label></div></div>
+                    <div class="btn-container"><button type="button" class="btn btn-primary" onclick="salvarTeste('COVID')">Salvar Teste</button></div>
+                </form>
+
+                <!-- Formulário de HCG -->
+                <form id="form-hcg" style="display: none;">
+                     <h4>Dados da Paciente</h4>
+                     <div class="form-row">
+                        <div class="form-group"><label for="hcg-nome">Nome do usuário</label><input type="text" id="hcg-nome" required></div>
+                        <div class="form-group"><label for="hcg-prontuario">Prontuário</label><input type="text" id="hcg-prontuario"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label for="hcg-identidade">Identidade</label><input type="text" id="hcg-identidade"></div>
+                        <div class="form-group"><label for="hcg-nascimento">Data de Nascimento</label><input type="date" id="hcg-nascimento" required></div>
+                    </div>
+                    <h4>Dados do Teste</h4>
+                     <div class="form-row">
+                        <div class="form-group"><label for="hcg-lote">Selecione o Lote</label><select id="hcg-lote" required></select></div>
+                        <div class="form-group"><label for="hcg-data-coleta">Data da coleta</label><input type="date" id="hcg-data-coleta" required></div>
+                    </div>
+                    <h4>Resultado</h4>
+                    <div class="form-group"><label for="hcg-resultado">Resultado do Teste</label><input type="text" id="hcg-resultado" placeholder="Ex: POSITIVO > 25MUI/ML" required></div>
+                    <div class="btn-container"><button type="button" class="btn btn-primary" onclick="salvarTeste('HCG')">Salvar Teste</button></div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- PÁGINA RELATÓRIOS -->
+        <div id="relatorios" class="page">
+            <div class="card">
+                <h3>Relatório de Testes Realizados</h3>
+                <table class="data-table">
+                    <thead><tr><th>Paciente</th><th>CPF/ID</th><th>Tipo</th><th>Data</th><th>Resultado</th><th>Profissional</th><th>Ações</th></tr></thead>
+                    <tbody id="report-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PÁGINA ESTOQUE -->
+        <div id="estoque" class="page">
+            <div class="card">
+                <h3>Adicionar Novo Lote de Teste</h3>
+                <form id="form-add-stock">
+                    <div class="form-row">
+                         <div class="form-group">
+                            <label for="stock-tipo">Tipo de Teste</label>
+                            <select id="stock-tipo" required>
+                                <option value="" disabled selected>Selecione...</option>
+                                <option value="DENGUE">Dengue NS1</option>
+                                <option value="COVID">COVID-19 Antígeno</option>
+                                <option value="HCG">Detecção de HCG</option>
+                            </select>
+                        </div>
+                        <div class="form-group"><label for="stock-lote">Código do Lote</label><input type="text" id="stock-lote" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label for="stock-validade">Data de Validade</label><input type="date" id="stock-validade" required></div>
+                        <div class="form-group"><label for="stock-quantidade">Quantidade</label><input type="number" id="stock-quantidade" min="1" required></div>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="adicionarLote()">Salvar Lote</button>
+                </form>
+            </div>
+            <div class="card">
+                <h3>Estoque Atual</h3>
+                <table class="data-table">
+                    <thead><tr><th>Tipo</th><th>Lote</th><th>Validade</th><th>Qtd.</th><th>Ações</th></tr></thead>
+                    <tbody id="stock-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- === TEMPLATES DOS LAUDOS PARA PDF (OCULTOS) === -->
+    <div id="laudo-dengue-container">
+        <!-- Template Dengue vai aqui -->
+    </div>
+    <div id="laudo-covid-container">
+        <!-- Template COVID vai aqui -->
+    </div>
+    <div id="laudo-hcg-container">
+        <div class="laudo-pdf">
+            <div class="laudo-header"><div class="header-left"><p><strong>Prefeitura Municipal de Novo Hamburgo</strong><br>Estado do Rio Grande do Sul<br>Secretaria Municipal de Saúde</p></div><div class="header-right"><p style="font-size: 20pt; letter-spacing: 1px;">NOVO<br>HAMBURGO</p></div></div>
+            <div style="padding: 5mm 0;">
+                <p style="margin: 3px 0;"><strong>Nome do usuário:</strong> <span id="pdf-hcg-nome"></span></p>
+                <div class="laudo-grid-2" style="grid-template-columns: 1.5fr 1fr;"><p style="margin: 3px 0;"><strong>Prontuário:</strong> <span id="pdf-hcg-prontuario"></span></p><p style="margin: 3px 0;"><strong>Identidade:</strong> <span id="pdf-hcg-identidade"></span></p></div>
+                <div class="laudo-grid-2"><p style="margin: 3px 0;"><strong>Data de Nascimento:</strong> <span id="pdf-hcg-nascimento"></span></p><p style="margin: 3px 0;"><strong>Sexo:</strong> FEMININO</p></div>
+                <p style="margin: 3px 0;"><strong>Unidade de realização do exame:</strong> POSTO DE SAÚDE CENTRAL</p>
+                <p style="margin: 3px 0;"><strong>Data da coleta da amostra:</strong> <span id="pdf-hcg-data-coleta"></span></p>
+            </div>
+            <h1 class="laudo-title" style="border: 2px solid black; padding: 2mm; margin-top: 5mm; margin-bottom: 5mm;">TESTE RÁPIDO PARA DETECÇÃO DE HCG</h1>
+            <div style="border: 2px solid black; padding: 3mm;">
+                <p><strong>Amostra:</strong> urina</p>
+                <div class="laudo-grid-2" style="align-items: center;"><p><strong>Teste:</strong> TESTE RÁPIDO HCG</p><p><strong>Lote:</strong> <span id="pdf-hcg-lote"></span></p></div>
+                <div class="laudo-grid-2" style="align-items: center;"><p><strong>Método:</strong> Imunocromatografia</p><p><strong>Validade:</strong> <span id="pdf-hcg-validade"></span></p></div>
+            </div>
+            <div class="laudo-block" style="margin-top: 5mm; margin-bottom: 3mm;"><strong>RESULTADO DO TESTE</strong></div>
+            <p class="single-line-result" style="text-align: center;"><span id="pdf-hcg-resultado"></span></p>
+            <div class="reference-box" style="margin-top: 5mm;"><p><strong>Valor de referência: NEGATIVO: < 25mUI/mL - POSITIVO: > 25mUI/mL</strong><br>A produção do HCG se inicia nos primeiros dias após a concepção e é bastante variável entre os indivíduos. O valor negativo associado ao atraso menstrual de poucos dias não exclui gestação. Nestes casos, a critério clínico, sugerimos refazer o exame após sete dias, uma vez que na presença de gravidez, os valores aumentam significativamente. Na gravidez, os maiores valores são encontrados em torno de 8 - 10 semanas após o último ciclo menstrual. Por volta da décima segunda semana de gestação as concentrações deste hormônio diminuem.</p></div>
+            <div class="signature-section" style="margin-top: auto; padding-top: 10mm;"><div class="laudo-grid-2"><p><strong>Responsável Técnico:</strong> <span id="pdf-hcg-profissional"></span></p><p><strong>Assinatura e carimbo:</strong> _________________</p></div></div>
+            <div class="laudo-footer" style="font-size: 7.5pt;"><p style="text-align: justify; margin-bottom: 2mm;">Este laudo possui caráter meramente informativo e ilustrativo e jamais deve ser utilizado, sob hipótese alguma, com finalidade de diagnóstico, adoção de medicamentos ou de quaisquer outros procedimentos relacionados à saúde, sem a prévia orientação médica e/ou orientação de um profissional de saúde especializado.</p><hr><p>www.novohamburgo.rs.gov.br</p><p>Centro Administrativo Leopoldo Petry | Rua Guia Lopes, 4201 - B. Canudos - 93548-013 | Novo Hamburgo – RS - Fone: (51) 3594.9999</p><p>"Contribua com o Fundo Municipal da Criança e do Adolescente. Doe Sangue, Doe Órgãos, Doe Medula Óssea, SALVE UMA VIDA."</p></div>
+        </div>
+    </div>
+    
+    <div id="loader" class="loader-overlay" style="display: none;">
+        <div class="loader"></div>
+        <p>Processando...</p>
+    </div>
+
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzJILyjMx3PdP2Gvjv5PTQJHHW3SNzUMFEqVhZxTC9VwYJiOwXqosv83S-VrpKupZs/exec";
+
+        const ADMIN_PASSWORD = '159753';
+        let dbTestes = [];
+        let dbEstoque = [];
+        let proximoTesteId = 1;
+        let proximoEstoqueId = 1;
+        let typeChart, resultChart;
+
+        function toggleLoader(show) { document.getElementById('loader').style.display = show ? 'flex' : 'none'; }
+
+        async function apiCall(action, payload = {}) {
+            toggleLoader(true);
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    redirect: 'follow',
+                    body: JSON.stringify({ action, payload })
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    return result;
+                } else {
+                    throw new Error(result.message || 'Ocorreu um erro desconhecido na API.');
+                }
+            } catch (error) {
+                alert(`Falha na comunicação com a base de dados: ${error.message}`);
+                return null;
+            } finally {
+                toggleLoader(false);
+            }
+        }
+        
+        async function carregarDadosIniciais() {
+            const result = await apiCall('carregarDados');
+            if(result) {
+                dbEstoque = result.estoque
+                    .filter(row => row[0]) 
+                    .map(row => ({ id: parseInt(row[0]), tipo: row[1], lote: row[2], validade: row[3], quantidade: parseInt(row[4]) || 0 }));
+                    
+                dbTestes = result.testes
+                    .filter(row => row[1]) 
+                    .map(row => {
+                        return {
+                            timestamp: row[0], id: parseInt(row[1]), tipo: row[2], nome: row[3],
+                            prontuario_cpf_id: row[4], nascimento: row[5], dataColeta: row[6],
+                            resultado: row[7], profissional: row[8], lote_usado: row[9],
+                            detalhes_adicionais: row[10]
+                        }
+                    });
+
+                proximoTesteId = dbTestes.length > 0 ? Math.max(...dbTestes.map(t => t.id || 0)) + 1 : 1;
+                proximoEstoqueId = dbEstoque.length > 0 ? Math.max(...dbEstoque.map(l => l.id || 0)) + 1 : 1;
+
+                renderDashboard();
+                renderizarEstoque();
+                renderizarRelatorios();
+                toggleTestForm(); 
+                
+                showPage('dashboard'); 
+            }
+        }
+
+        async function salvarTeste(tipo) {
+            const profissional = document.getElementById('profissional-responsavel').value;
+            if (!profissional) { alert('Por favor, informe o profissional responsável.'); return; }
+            const loteId = document.getElementById(`${tipo.toLowerCase()}-lote`).value;
+            if (!loteId) { alert('Por favor, selecione um lote.'); return; }
+            const estoqueItem = dbEstoque.find(item => item.id == loteId);
+            if (!estoqueItem || estoqueItem.quantidade <= 0) { alert('Erro: Lote selecionado inválido ou sem estoque!'); return; }
+            
+            const teste = { id: proximoTesteId, tipo: tipo, profissional: profissional.toUpperCase(), loteInfo: estoqueItem };
+            let formValido = true;
+            let prontuario_cpf_id = '', detalhes_adicionais = '';
+
+            if (tipo === 'DENGUE') {
+                Object.assign(teste, { nome: document.getElementById('dengue-nome').value.toUpperCase(), cpf: document.getElementById('dengue-cpf').value, nascimento: document.getElementById('dengue-nascimento').value, sexo: document.getElementById('dengue-sexo').value.toUpperCase(), inicioSintomas: document.getElementById('dengue-inicio-sintomas').value, dataColeta: document.getElementById('dengue-data-coleta').value, resultado: document.querySelector('input[name="dengue-resultado"]:checked')?.value });
+                prontuario_cpf_id = teste.cpf;
+                if (!teste.nome || !teste.nascimento || !teste.inicioSintomas || !teste.dataColeta || !teste.resultado) formValido = false;
+            } else if (tipo === 'COVID') {
+                Object.assign(teste, { nome: document.getElementById('covid-nome').value.toUpperCase(), cidade: document.getElementById('covid-cidade').value.toUpperCase(), nascimento: document.getElementById('covid-nascimento').value, sexo: document.getElementById('covid-sexo').value.toUpperCase(), amostra: document.querySelector('input[name="covid-amostra"]:checked')?.value, resultado: document.querySelector('input[name="covid-resultado"]:checked')?.value, cpf: 'N/A', dataColeta: new Date().toISOString().slice(0, 10) });
+                prontuario_cpf_id = 'N/A';
+                detalhes_adicionais = teste.amostra;
+                if (!teste.nome || !teste.nascimento || !teste.resultado) formValido = false;
+            } else if (tipo === 'HCG') {
+                Object.assign(teste, { nome: document.getElementById('hcg-nome').value.toUpperCase(), prontuario: document.getElementById('hcg-prontuario').value, identidade: document.getElementById('hcg-identidade').value, nascimento: document.getElementById('hcg-nascimento').value, dataColeta: document.getElementById('hcg-data-coleta').value, resultado: document.getElementById('hcg-resultado').value.toUpperCase() });
+                prontuario_cpf_id = teste.prontuario || teste.identidade;
+                if (!teste.nome || !teste.nascimento || !teste.dataColeta || !teste.resultado) formValido = false;
+            }
+            if (!formValido) { alert('Por favor, preencha todos os campos obrigatórios!'); return; }
+
+            const payload = { id: teste.id, tipo: teste.tipo, nome: teste.nome, prontuario_cpf_id: prontuario_cpf_id, nascimento: teste.nascimento, dataColeta: teste.dataColeta, resultado: teste.resultado, profissional: teste.profissional, lote_usado: teste.loteInfo.lote, detalhes_adicionais: detalhes_adicionais };
+            
+            const result = await apiCall('salvarTeste', payload);
+            if(result) {
+                dbTestes.push(payload);
+                estoqueItem.quantidade--;
+                proximoTesteId++; 
+                alert('Teste salvo com sucesso na planilha!');
+                document.getElementById(`form-${tipo.toLowerCase()}`).reset(); 
+                document.getElementById('profissional-responsavel').value = '';
+                renderDashboard();
+                renderizarRelatorios();
+                showPage('dashboard');
+            }
+        }
+        
+        async function adicionarLote() {
+            const tipo = document.getElementById('stock-tipo').value;
+            const lote = document.getElementById('stock-lote').value.toUpperCase();
+            const validade = document.getElementById('stock-validade').value;
+            const quantidade = parseInt(document.getElementById('stock-quantidade').value);
+            if (!tipo || !lote || !validade || isNaN(quantidade)) { alert('Preencha todos os campos para adicionar o lote.'); return; }
+
+            const novoLote = { id: proximoEstoqueId, tipo, lote, validade, quantidade };
+            const result = await apiCall('adicionarLote', novoLote);
+            if(result) {
+                dbEstoque.push(novoLote);
+                proximoEstoqueId++;
+                alert('Lote salvo com sucesso na planilha!');
+                document.getElementById('form-add-stock').reset(); 
+                renderizarEstoque();
+            }
+        }
+        
+        function renderizarEstoque() {
+            const tbody = document.getElementById('stock-table-body');
+            tbody.innerHTML = '';
+            if (dbEstoque.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhum lote cadastrado no estoque.</td></tr>';
+                return;
+            }
+            dbEstoque.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${item.tipo}</td><td>${item.lote}</td><td>${new Date(item.validade+'T00:00:00').toLocaleDateString('pt-BR')}</td><td>${item.quantidade}</td>
+                    <td class="actions-cell"><button class="btn btn-edit btn-sm" onclick="editarLote(${item.id})">Editar</button><button class="btn btn-danger btn-sm" onclick="excluirLote(${item.id})">Excluir</button></td>`;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function renderizarRelatorios() {
+            const tbody = document.getElementById('report-table-body');
+            tbody.innerHTML = '';
+            if (dbTestes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Nenhum teste realizado ainda.</td></tr>';
+                return;
+            }
+            dbTestes.forEach(teste => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${teste.nome}</td><td>${teste.prontuario_cpf_id || 'N/A'}</td><td>${teste.tipo}</td><td>${new Date(teste.dataColeta + 'T00:00:00').toLocaleDateString('pt-BR')}</td><td>${teste.resultado}</td><td>${teste.profissional}</td>
+                    <td class="actions-cell"><button class="btn btn-secondary btn-sm" onclick="gerarPDF(${teste.id})">Gerar PDF</button><button class="btn btn-danger btn-sm" onclick="excluirTeste(${teste.id})">Excluir</button></td>`;
+                tbody.appendChild(row);
+            });
+        }
+
+        function checkAdminLogin() { return sessionStorage.getItem('isAdmin') === 'true'; }
+        function updateAdminUI() { document.getElementById('logout-link').style.display = checkAdminLogin() ? 'flex' : 'none'; }
+        function accessStockPage() { if (checkAdminLogin()) { showPage('estoque'); return; } const password = prompt('Digite a senha de administrador:'); if (password === ADMIN_PASSWORD) { sessionStorage.setItem('isAdmin', 'true'); updateAdminUI(); showPage('estoque'); } else if (password !== null) { alert('Senha incorreta!'); } }
+        function logout() { sessionStorage.removeItem('isAdmin'); updateAdminUI(); showPage('dashboard'); alert('Você saiu da sessão de administrador.'); }
+        const themeSwitcher = document.getElementById('theme-switcher');
+        function set_theme(theme_name) { localStorage.setItem('theme', theme_name); document.body.className = theme_name; themeSwitcher.textContent = theme_name === 'dark-theme' ? '☀️' : '🌙'; }
+        themeSwitcher.addEventListener('click', () => { if (localStorage.getItem('theme') === 'dark-theme') set_theme('light-theme'); else set_theme('dark-theme'); });
+        function showPage(pageId) { if(pageId === 'estoque' && !checkAdminLogin()) { accessStockPage(); return; } document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); document.getElementById(pageId).classList.add('active'); document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active')); document.querySelector(`.nav-link[onclick*="'${pageId}'"]`).classList.add('active'); if (pageId === 'dashboard') renderDashboard(); if (pageId === 'relatorios') renderizarRelatorios(); if (pageId === 'estoque') renderizarEstoque(); if (pageId === 'cadastro') toggleTestForm(); }
+        function renderDashboard() { /* Lógica do Dashboard */ }
+        function popularDropdownLotes(tipo) { /* Lógica para popular dropdown */ }
+        function editarLote(id) { /* Lógica para editar lote */ }
+        function excluirLote(id) { /* Lógica para excluir lote */ }
+        function excluirTeste(id) { /* Lógica para excluir teste */ }
+        function gerarPDF(testeId) { /* Lógica para gerar PDF */ }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            updateAdminUI();
+            set_theme(localStorage.getItem('theme') || 'light-theme');
+            carregarDadosIniciais();
+        });
+    </script>
+</body>
+</html>
