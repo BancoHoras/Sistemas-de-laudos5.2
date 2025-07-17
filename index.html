@@ -345,7 +345,7 @@
             <a href="#" class="nav-link" onclick="showPage('relatorios')">📋 Relatórios</a>
             <a href="#" class="nav-link" onclick="accessStockPage()">📦 Estoque</a>
             <a href="#" class="nav-link" id="logout-link" onclick="logout()" style="display: none;">🔒 Logout Admin</a>
-        </nav>
+            <a href="#" class="nav-link" onclick="showPage('indicadores')">📈 Indicadores</a> </nav>
     </div>
 
     <div class="main-content">
@@ -496,6 +496,41 @@
                 </table>
             </div>
         </div>
+        
+        <div id="indicadores" class="page">
+            <div class="card">
+                <h3>Novo Indicador</h3>
+                <form id="form-indicador">
+                    <div class="form-row">
+                        <div class="form-group"><label for="indicador-gmus">G'mus</label><input type="text" id="indicador-gmus" placeholder="Ex: 3/5, 4/5" required></div>
+                        <div class="form-group"><label for="indicador-pressao">Pressão</label><input type="text" id="indicador-pressao" placeholder="Ex: 120/80 mmHg" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label for="indicador-hgt">HGT</label><input type="number" id="indicador-hgt" required></div>
+                        <div class="form-group"><label for="indicador-peso">Peso (kg)</label><input type="number" step="0.1" id="indicador-peso" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label for="indicador-estatura">Estatura (m)</label><input type="number" step="0.01" id="indicador-estatura" required></div>
+                        <div class="form-group"><label for="indicador-profissional">Profissional</label><input type="text" id="indicador-profissional" required></div>
+                    </div>
+                    <div class="form-group"><label for="indicador-obs">Observações</label><textarea id="indicador-obs" rows="3"></textarea></div>
+                    <button type="button" class="btn btn-primary" onclick="salvarIndicador()">Salvar Indicador</button>
+                </form>
+            </div>
+            <div class="card">
+                <h3>Relatórios de Indicadores</h3>
+                <div style="margin-bottom: 15px;">
+                    <button class="btn btn-secondary" onclick="exportIndicators('csv')">Exportar CSV</button>
+                    <button class="btn btn-secondary" onclick="exportIndicators('pdf')">Exportar PDF</button>
+                </div>
+                <table class="data-table">
+                    <thead><tr><th>Data</th><th>G'mus</th><th>Pressão</th><th>HGT</th><th>Peso</th><th>Estatura</th><th>Profissional</th><th>Obs</th><th>Ações</th></tr></thead>
+                    <tbody id="indicators-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+
     </div>
 
     <div id="laudo-dengue-container">
@@ -618,7 +653,7 @@
                     <p><span class="info-label">Fabricante:</span> <span id="pdf-covid-fabricante"></span></p>
                     <p><span class="info-label">Lote:</span> <span id="pdf-covid-lote"></span></p>
                     <p><span class="info-label">Método:</span> <span id="pdf-covid-metodo"></span></p>
-                </div>
+                    <p><span class="info-label">Data da Coleta:</span> <span id="pdf-covid-data-coleta"></span></p> </div>
                 <p style="margin-top: 10px;"><span class="info-label">Amostra:</span></p>
                 <div class="check-options" style="margin-left: 20mm;">
                     <label>
@@ -763,6 +798,7 @@
         const ADMIN_PASSWORD = '159753';
         let dbTestes = [];
         let dbEstoque = [];
+        let dbIndicadores = []; // Adicionado array para indicadores
         let typeChart, resultChart;
 
         // --- FUNÇÕES DE UI E UTILITÁRIOS ---
@@ -798,6 +834,17 @@
             }
             dbTestes = testesData;
             console.log('Testes carregados:', dbTestes);
+
+            // Carregar dados de indicadores
+            const { data: indicadoresData, error: indicadoresError } = await supabaseClient.from('indicadores').select('*').order('created_at', { ascending: false });
+            if (indicadoresError) {
+                console.error('Erro ao carregar indicadores do Supabase:', indicadoresError);
+                alert(`Erro ao carregar indicadores: ${indicadoresError.message}.`);
+                toggleLoader(false);
+                return;
+            }
+            dbIndicadores = indicadoresData;
+            console.log('Indicadores carregados:', dbIndicadores);
             
             showPage('dashboard');
             toggleLoader(false);
@@ -1053,6 +1100,7 @@
             else if (pageId === 'relatorios') renderizarRelatorios();
             else if (pageId === 'estoque') renderizarEstoque();
             else if (pageId === 'cadastro') toggleTestForm();
+            else if (pageId === 'indicadores') renderizarIndicadores(); // Renderizar indicadores
         }
 
         function checkAdminLogin() { return sessionStorage.getItem('isAdmin') === 'true'; }
@@ -1107,6 +1155,189 @@
             else { alert('Lote atualizado com sucesso!'); await carregarDadosIniciais(); }
             toggleLoader(false);
         }
+
+        // --- FUNÇÕES INDICADORES (NOVAS) ---
+        async function salvarIndicador() {
+            const gmus = document.getElementById('indicador-gmus').value;
+            const pressao = document.getElementById('indicador-pressao').value;
+            const hgt = parseFloat(document.getElementById('indicador-hgt').value);
+            const peso = parseFloat(document.getElementById('indicador-peso').value);
+            const estatura = parseFloat(document.getElementById('indicador-estatura').value);
+            const profissional = document.getElementById('indicador-profissional').value;
+            const obs = document.getElementById('indicador-obs').value;
+
+            if (!gmus || !pressao || isNaN(hgt) || isNaN(peso) || isNaN(estatura) || !profissional) {
+                alert('Por favor, preencha todos os campos obrigatórios para o indicador.');
+                return;
+            }
+
+            toggleLoader(true, "Salvando indicador...");
+            const { data, error } = await supabaseClient.from('indicadores').insert([{ 
+                gmus, pressao, hgt, peso, estatura, profissional, obs 
+            }]).select().single();
+
+            toggleLoader(false);
+
+            if (error) { 
+                alert(`Erro ao salvar indicador: ${error.message}`); 
+                console.error('Erro ao salvar indicador:', error);
+                return; 
+            }
+            
+            alert('Indicador salvo com sucesso!');
+            dbIndicadores.unshift(data); // Adiciona ao início do array local
+            document.getElementById('form-indicador').reset(); 
+            renderizarIndicadores();
+        }
+
+        async function renderizarIndicadores() {
+            const tbody = document.getElementById('indicators-table-body');
+            tbody.innerHTML = ''; // Limpa a tabela
+            if (!dbIndicadores || dbIndicadores.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">Nenhum indicador registrado ainda.</td></tr>';
+                return;
+            }
+
+            dbIndicadores.forEach(indicator => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(indicator.created_at).toLocaleDateString('pt-BR')} ${new Date(indicator.created_at).toLocaleTimeString('pt-BR').slice(0, 5)}</td>
+                    <td>${indicator.gmus || ''}</td>
+                    <td>${indicator.pressao || ''}</td>
+                    <td>${indicator.hgt || ''}</td>
+                    <td>${indicator.peso || ''}</td>
+                    <td>${indicator.estatura || ''}</td>
+                    <td>${indicator.profissional || ''}</td>
+                    <td>${indicator.obs || ''}</td>
+                    <td class="actions-cell">
+                        <button class="btn btn-edit btn-sm" onclick="editarIndicador(${indicator.id})">Editar</button>
+                        <button class="btn btn-danger btn-sm" onclick="excluirIndicador(${indicator.id})">Excluir</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        async function editarIndicador(id) {
+            const indicadorParaEditar = dbIndicadores.find(i => i.id === id);
+            if (!indicadorParaEditar) { alert('Indicador não encontrado!'); return; }
+
+            // Lógica de prompt para edição (simplificada para demonstração)
+            const novoGmus = prompt("Editar G'mus:", indicadorParaEditar.gmus);
+            const novaPressao = prompt("Editar Pressão:", indicadorParaEditar.pressao);
+            const novoHgt = prompt("Editar HGT:", indicadorParaEditar.hgt);
+            const novoPeso = prompt("Editar Peso:", indicadorParaEditar.peso);
+            const novaEstatura = prompt("Editar Estatura:", indicadorParaEditar.estatura);
+            const novoProfissional = prompt("Editar Profissional:", indicadorParaEditar.profissional);
+            const novaObs = prompt("Editar Observações:", indicadorParaEditar.obs);
+
+            const atualizacoes = {};
+            if (novoGmus !== null) atualizacoes.gmus = novoGmus;
+            if (novaPressao !== null) atualizacoes.pressao = novaPressao;
+            if (novoHgt !== null && !isNaN(parseFloat(novoHgt))) atualizacoes.hgt = parseFloat(novoHgt);
+            if (novoPeso !== null && !isNaN(parseFloat(novoPeso))) atualizacoes.peso = parseFloat(novoPeso);
+            if (novaEstatura !== null && !isNaN(parseFloat(novaEstatura))) atualizacoes.estatura = parseFloat(novaEstatura);
+            if (novoProfissional !== null) atualizacoes.profissional = novoProfissional;
+            if (novaObs !== null) atualizacoes.obs = novaObs;
+
+            if (Object.keys(atualizacoes).length === 0) { alert("Nenhuma alteração feita."); return; }
+
+            toggleLoader(true, "Atualizando indicador...");
+            const { error } = await supabaseClient.from('indicadores').update(atualizacoes).eq('id', id);
+            if (error) { alert(`Erro ao editar indicador: ${error.message}`); }
+            else { alert('Indicador atualizado com sucesso!'); await carregarDadosIniciais(); }
+            toggleLoader(false);
+        }
+
+        async function excluirIndicador(id) {
+            if (!confirm("Tem certeza que deseja excluir este indicador? Esta ação não pode ser desfeita.")) return;
+            toggleLoader(true, "Excluindo indicador...");
+            const { error } = await supabaseClient.from('indicadores').delete().eq('id', id);
+            if (error) { alert(`Erro ao excluir indicador: ${error.message}`); }
+            else { alert('Indicador excluído com sucesso!'); await carregarDadosIniciais(); }
+            toggleLoader(false);
+        }
+
+        function exportIndicators(format) {
+            if (dbIndicadores.length === 0) {
+                alert('Nenhum dado para exportar.');
+                return;
+            }
+
+            const headers = ["Data", "G'mus", "Pressão", "HGT", "Peso", "Estatura", "Profissional", "Obs"];
+            const dataToExport = dbIndicadores.map(indicator => ([
+                new Date(indicator.created_at).toLocaleDateString('pt-BR') + ' ' + new Date(indicator.created_at).toLocaleTimeString('pt-BR').slice(0, 5),
+                indicator.gmus,
+                indicator.pressao,
+                indicator.hgt,
+                indicator.peso,
+                indicator.estatura,
+                indicator.profissional,
+                indicator.obs
+            ]));
+
+            if (format === 'csv') {
+                let csvContent = headers.join(",") + "\n";
+                dataToExport.forEach(row => {
+                    csvContent += row.map(e => `"${String(e).replace(/"/g, '""')}"`).join(",") + "\n";
+                });
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = "relatorio_indicadores.csv";
+                link.click();
+            } else if (format === 'pdf') {
+                // Criar um elemento HTML temporário para o PDF
+                const pdfContainer = document.createElement('div');
+                pdfContainer.style.width = '210mm'; // Largura A4
+                pdfContainer.style.padding = '10mm';
+                pdfContainer.style.fontSize = '10pt';
+                pdfContainer.style.fontFamily = 'Arial, sans-serif';
+
+                let pdfHtml = `
+                    <h2 style="text-align: center;">Relatório de Indicadores</h2>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                        <thead>
+                            <tr style="background-color: #f2f2f2;">
+                                ${headers.map(h => `<th style="border: 1px solid #ddd; padding: 8px; text-align: left;">${h}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${dataToExport.map(row => `
+                                <tr>
+                                    ${row.map(cell => `<td style="border: 1px solid #ddd; padding: 8px;">${cell}</td>`).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                pdfContainer.innerHTML = pdfHtml;
+
+                // Esconder temporariamente o container para que html2pdf possa renderizá-lo sem interferir na UI visível
+                pdfContainer.style.position = 'fixed';
+                pdfContainer.style.top = '-3000px';
+                pdfContainer.style.left = '-3000px';
+                document.body.appendChild(pdfContainer); // Adiciona ao DOM para html2pdf processar
+
+                toggleLoader(true, "Gerando Relatório PDF...");
+                html2pdf().set({
+                    margin: 5, // Margens reduzidas para relatório
+                    filename: 'relatorio_indicadores.pdf',
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' } // Orientação paisagem para mais colunas
+                }).from(pdfContainer).save().then(() => {
+                    document.body.removeChild(pdfContainer); // Remove o container temporário
+                    toggleLoader(false);
+                }).catch(error => {
+                    console.error('Erro ao gerar PDF do relatório:', error);
+                    alert('Erro ao gerar relatório PDF: ' + error.message);
+                    document.body.removeChild(pdfContainer);
+                    toggleLoader(false);
+                });
+            }
+        }
+
 
         function gerarPDF(testeId) {
             console.log('--- Início da função gerarPDF ---');
@@ -1171,54 +1402,30 @@
                 laudoContentElement = document.getElementById(laudoContainerId).firstElementChild;
                 
                 console.log('Preenchendo laudo COVID...');
-                // --- DEBUG DE ID DE ELEMENTOS COVID ---
-                // Verificações para garantir que os IDs existem
-                const checkElement = (id) => {
-                    const el = document.getElementById(id);
-                    if (!el) console.error(`ERRO CRÍTICO: ID '${id}' não encontrado no template COVID!`);
-                    return el;
-                };
-
-                const pdfCovidNome = checkElement('pdf-covid-nome');
-                const pdfCovidNascimento = checkElement('pdf-covid-nascimento');
-                const pdfCovidSexo = checkElement('pdf-covid-sexo');
-                const pdfCovidCidade = checkElement('pdf-covid-cidade');
-                const pdfCovidLote = checkElement('pdf-covid-lote');
-                const pdfCovidDataColeta = checkElement('pdf-covid-data-coleta');
-                const pdfCovidProfissional = checkElement('pdf-covid-profissional');
-                const covidAmostraNasofaringeo = checkElement('covid-amostra-nasofaringeo');
-                const covidAmostraNasal = checkElement('covid-amostra-nasal');
-                const covidResultPositivo = checkElement('covid-result-positivo');
-                const covidResultNegativo = checkElement('covid-result-negativo');
-                const pdfCovidFabricante = checkElement('pdf-covid-fabricante');
-                const pdfCovidMetodo = checkElement('pdf-covid-metodo');
-                const pdfCovidDataEmissao = checkElement('pdf-covid-data-emissao'); // Novo elemento
-
-
                 const detalhesCovid = (teste.detalhes_adicionais || 'N/A|N/A|N/A').split('|');
                 const amostraCovid = detalhesCovid[0] || 'N/A';
                 const sexoCovid = detalhesCovid[1] || 'N/A';
-                const cidadeCovid = detalhesCovid[2] || 'NOVO HAMBURGO';
+                const cidadeCovid = detalhesCovid[2] || 'NOVO HAMBURGO'; 
 
-                if (pdfCovidNome) pdfCovidNome.textContent = teste.nome || '';
-                if (pdfCovidNascimento) pdfCovidNascimento.textContent = formatDate(teste.nascimento) || '';
-                if (pdfCovidSexo) pdfCovidSexo.textContent = sexoCovid;
-                if (pdfCovidCidade) pdfCovidCidade.textContent = cidadeCovid;
-                if (pdfCovidLote) pdfCovidLote.textContent = teste.lote_usado || '';
-                if (pdfCovidDataColeta) pdfCovidDataColeta.textContent = formatDate(teste.data_coleta) || currentFormattedDate;
-                if (pdfCovidProfissional) pdfCovidProfissional.textContent = teste.profissional || '';
+                // Preenchimento de texto
+                if (document.getElementById('pdf-covid-nome')) document.getElementById('pdf-covid-nome').textContent = teste.nome || '';
+                if (document.getElementById('pdf-covid-nascimento')) document.getElementById('pdf-covid-nascimento').textContent = formatDate(teste.nascimento) || '';
+                if (document.getElementById('pdf-covid-sexo')) document.getElementById('pdf-covid-sexo').textContent = sexoCovid;
+                if (document.getElementById('pdf-covid-cidade')) document.getElementById('pdf-covid-cidade').textContent = cidadeCovid;
+                if (document.getElementById('pdf-covid-lote')) document.getElementById('pdf-covid-lote').textContent = teste.lote_usado || '';
+                if (document.getElementById('pdf-covid-data-coleta')) document.getElementById('pdf-covid-data-coleta').textContent = formatDate(teste.data_coleta) || currentFormattedDate; 
+                if (document.getElementById('pdf-covid-profissional')) document.getElementById('pdf-covid-profissional').textContent = teste.profissional || '';
+                if (document.getElementById('pdf-covid-fabricante')) document.getElementById('pdf-covid-fabricante').textContent = teste.fabricante || '(Não especificado)';
+                if (document.getElementById('pdf-covid-metodo')) document.getElementById('pdf-covid-metodo').textContent = teste.metodo || 'Imunocromatografia';
+                if (document.getElementById('pdf-covid-data-emissao')) document.getElementById('pdf-covid-data-emissao').textContent = currentFormattedDate;
 
-                if (covidAmostraNasofaringeo) covidAmostraNasofaringeo.checked = (amostraCovid === 'SWAB NASOFARINGEO');
-                if (covidAmostraNasal) covidAmostraNasal.checked = (amostraCovid === 'SWAB NASAL');
+                // Preenchimento de checkboxes
+                if (document.getElementById('covid-amostra-nasofaringeo')) document.getElementById('covid-amostra-nasofaringeo').checked = (amostraCovid === 'SWAB NASOFARINGEO');
+                if (document.getElementById('covid-amostra-nasal')) document.getElementById('covid-amostra-nasal').checked = (amostraCovid === 'SWAB NASAL');
                 
-                if (covidResultPositivo) covidResultPositivo.checked = (teste.resultado === 'POSITIVO');
-                if (covidResultNegativo) covidResultNegativo.checked = (teste.resultado === 'NEGATIVO');
+                if (document.getElementById('covid-result-positivo')) document.getElementById('covid-result-positivo').checked = (teste.resultado === 'POSITIVO');
+                if (document.getElementById('covid-result-negativo')) document.getElementById('covid-result-negativo').checked = (teste.resultado === 'NEGATIVO');
                 
-                // Preenchendo campos Fabricante e Método (se existirem no objeto teste ou forem fixos)
-                if (pdfCovidFabricante) pdfCovidFabricante.textContent = teste.fabricante || '(Não especificado)'; // 'fabricante' pode ser uma coluna no seu BD
-                if (pdfCovidMetodo) pdfCovidMetodo.textContent = teste.metodo || 'Imunocromatografia'; // 'metodo' pode ser uma coluna no seu BD
-                if (pdfCovidDataEmissao) pdfCovidDataEmissao.textContent = currentFormattedDate;
-
                 console.log('Laudo COVID preenchido.');
 
 
@@ -1227,39 +1434,21 @@
                 laudoContentElement = document.getElementById(laudoContainerId).firstElementChild;
                 
                 console.log('Preenchendo laudo HCG...');
-                // --- DEBUG DE ID DE ELEMENTOS HCG ---
-                const checkElementHCG = (id) => {
-                    const el = document.getElementById(id);
-                    if (!el) console.error(`ERRO CRÍTICO: ID '${id}' não encontrado no template HCG!`);
-                    return el;
-                };
-
-                const pdfHcgNome = checkElementHCG('pdf-hcg-nome');
-                const pdfHcgProntuario = checkElementHCG('pdf-hcg-prontuario');
-                const pdfHcgIdentidade = checkElementHCG('pdf-hcg-identidade');
-                const pdfHcgNascimento = checkElementHCG('pdf-hcg-nascimento');
-                const pdfHcgLote = checkElementHCG('pdf-hcg-lote');
-                const pdfHcgValidade = checkElementHCG('pdf-hcg-validade');
-                const pdfHcgDataColeta = checkElementHCG('pdf-hcg-data-coleta');
-                const pdfHcgResultado = checkElementHCG('pdf-hcg-resultado');
-                const pdfHcgProfissional = checkElementHCG('pdf-hcg-profissional');
-                const pdfHcgDataEmissao = checkElementHCG('pdf-hcg-data-emissao');
-                const pdfHcgTeste = checkElementHCG('pdf-hcg-teste'); // Novo
-                const pdfHcgMetodo = checkElementHCG('pdf-hcg-metodo'); // Novo
-
-                if (pdfHcgNome) pdfHcgNome.textContent = teste.nome || '';
-                if (pdfHcgProntuario) pdfHcgProntuario.textContent = teste.prontuario_cpf_id || 'N/A';
-                if (pdfHcgIdentidade) pdfHcgIdentidade.textContent = teste.prontuario_cpf_id || 'N/A';
-                if (pdfHcgNascimento) pdfHcgNascimento.textContent = formatDate(teste.nascimento) || '';
-                if (pdfHcgLote) pdfHcgLote.textContent = teste.lote_usado || '';
-                if (pdfHcgValidade) pdfHcgValidade.textContent = loteValidade;
-                if (pdfHcgDataColeta) pdfHcgDataColeta.textContent = formatDate(teste.data_coleta) || '';
-                if (pdfHcgResultado) pdfHcgResultado.textContent = teste.resultado || '';
-                if (pdfHcgProfissional) pdfHcgProfissional.textContent = teste.profissional || '';
-                if (pdfHcgDataEmissao) pdfHcgDataEmissao.textContent = currentFormattedDate;
-                if (pdfHcgTeste) pdfHcgTeste.textContent = teste.testeFabricante || '(Não especificado)'; // Assumindo campo 'testeFabricante'
-                if (pdfHcgMetodo) pdfHcgMetodo.textContent = teste.metodo || 'Imunocromatografia'; // Assumindo campo 'metodo'
-
+                // Preenchimento de texto
+                if (document.getElementById('pdf-hcg-nome')) document.getElementById('pdf-hcg-nome').textContent = teste.nome || '';
+                if (document.getElementById('pdf-hcg-prontuario')) document.getElementById('pdf-hcg-prontuario').textContent = teste.prontuario_cpf_id || 'N/A';
+                if (document.getElementById('pdf-hcg-identidade')) document.getElementById('pdf-hcg-identidade').textContent = teste.prontuario_cpf_id || 'N/A';
+                if (document.getElementById('pdf-hcg-nascimento')) document.getElementById('pdf-hcg-nascimento').textContent = formatDate(teste.nascimento) || '';
+                if (document.getElementById('pdf-hcg-lote')) document.getElementById('pdf-hcg-lote').textContent = teste.lote_usado || '';
+                const estoqueItemHCG = dbEstoque.find(item => item.lote === teste.lote_usado && item.tipo === 'HCG');
+                if (document.getElementById('pdf-hcg-validade')) document.getElementById('pdf-hcg-validade').textContent = estoqueItemHCG ? formatDate(estoqueItemHCG.validade) : 'N/A';
+                if (document.getElementById('pdf-hcg-data-coleta')) document.getElementById('pdf-hcg-data-coleta').textContent = formatDate(teste.data_coleta) || '';
+                if (document.getElementById('pdf-hcg-resultado')) document.getElementById('pdf-hcg-resultado').textContent = teste.resultado || '';
+                if (document.getElementById('pdf-hcg-profissional')) document.getElementById('pdf-hcg-profissional').textContent = teste.profissional || '';
+                if (document.getElementById('pdf-hcg-data-emissao')) document.getElementById('pdf-hcg-data-emissao').textContent = currentFormattedDate;
+                if (document.getElementById('pdf-hcg-teste')) document.getElementById('pdf-hcg-teste').textContent = teste.testeFabricante || '(Não especificado)';
+                if (document.getElementById('pdf-hcg-metodo')) document.getElementById('pdf-hcg-metodo').textContent = teste.metodo || 'Imunocromatografia';
+                
                 console.log('Laudo HCG preenchido.');
 
             } else {
